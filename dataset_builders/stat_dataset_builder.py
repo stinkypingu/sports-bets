@@ -1,9 +1,9 @@
-from dataset_builders.base_dataset_builder import DatasetBuilder
+from dataset_builders.base_dataset_builder import BaseDatasetBuilder
 import pandas as pd 
 import numpy as np
 
 
-class StatDatasetBuilder(DatasetBuilder):
+class StatDatasetBuilder(BaseDatasetBuilder):
     """
     A class for building a dataset for the stat prediction task in basketball.
 

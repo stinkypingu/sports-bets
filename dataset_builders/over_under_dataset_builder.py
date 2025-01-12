@@ -1,11 +1,11 @@
-from DatasetBuilders.DatasetBuilder import DatasetBuilder
+from dataset_builders.base_dataset_builder import BaseDatasetBuilder
 import pandas as pd 
 import numpy as np
 from itertools import combinations
 import logging
 import json
 
-class OverUnderDatasetBuilder(DatasetBuilder):
+class OverUnderDatasetBuilder(BaseDatasetBuilder):
     """
     A class for building a dataset for the over/under prediction task in basketball.
 

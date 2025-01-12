@@ -666,6 +666,9 @@ class PlayerEmbeddingDatasetBuilder(BaseDatasetBuilder):
             - self.X: A NumPy array containing input features for all players.
             - self.Y: A NumPy array containing output features for all players.
         """
+        self.logger.info(f'Preparing pre-normalized inputs and outputs for players with at least {self.req_games} games played (req_games), ' + 
+                         f'up to {self.max_games} in their history (max_games), ignoring the most {self.offset} recent games (offset). This might take a while.')
+        
         for player in self.get_valid_players():
             x, y = self.pre_normalized_player_io(player)
 
