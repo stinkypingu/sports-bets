@@ -1,10 +1,10 @@
-from DatasetBuilders.DatasetBuilder import DatasetBuilder
+from dataset_builders.base_dataset_builder import BaseDatasetBuilder
 import pandas as pd 
 import numpy as np
 from itertools import combinations
 import logging
 
-class PlayerEmbeddingDatasetBuilder(DatasetBuilder):
+class SimplePlayerEmbeddingDatasetBuilder(BaseDatasetBuilder):
     """
     A DatasetBuilder subclass for creating player embedding datasets.
 
@@ -393,20 +393,27 @@ class PlayerEmbeddingDatasetBuilder(DatasetBuilder):
 
 
 
-class AllPlayerEmbeddingDatasetBuilder(DatasetBuilder):
+class PlayerEmbeddingDatasetBuilder(BaseDatasetBuilder):
     """
-    A DatasetBuilder subclass for creating player embeddings but for all players.
+    A DatasetBuilder subclass for creating player embeddings for players using more advanced criteria.
 
     Args:
-        max_games (int): The maximum number of games to include in each player's match history.
+        req_games (int): Required number of games in order for a player to get an embedding.
+        max_games (int): The maximum number of games to include from each player's match history to make an embedding.
+        offset (int): Number of most recent games to ignore.
     """
-    def __init__(self, req_games=5, max_games=20, offset=0): 
+    def __init__(self, req_games=5, max_games=100, offset=0): 
         super().__init__()
 
         #values for this databuilder
         self.req_games = req_games #minimum number of games player required to have to be given an embedding
         self.max_games = max_games #maximum number of games to go into each player's match history
         self.offset = offset #amount of recent games to ignore before counting match history
+
+        #check
+        if self.max_games < self.req_games + self.offset:
+            self.logger.error(f'In PlayerEmbeddingDatasetBuilder calls, max_games must be greater than or equal to req_games + offset.')
+            raise
 
         #19 values
         self.select_columns = ['MIN', '+/-', 'OREB', 'DREB', 'REB', 'AST', 'STL', 'BLK', 'TO', 'PF', 'PTS', 'FGM', 'FGA', '3PM', '3PA', 'FTM', 'FTA', '2PM', '2PA']
@@ -463,6 +470,7 @@ class AllPlayerEmbeddingDatasetBuilder(DatasetBuilder):
 
 
     #----------------------------------------------------------
+    #select the players who will get an embedding
     def filter_players(self):
         """
         Filters players based on their average minutes played and encodes the qualified players.
@@ -477,14 +485,14 @@ class AllPlayerEmbeddingDatasetBuilder(DatasetBuilder):
         Returns:
             self.player_to_idx (dict): Dictionary containing valid players with indices for onehot encoding.
         """
-        if self.max_games < self.req_games:
-            self.logger.error(f'In AllPlayerEmbeddingDatasetBuilder calls, max_games must be greater than or equal to req_games.')
+        if self.max_games < self.req_games + self.offset:
+            self.logger.error(f'In PlayerEmbeddingDatasetBuilder calls, max_games must be greater than or equal to req_games + offset.')
             raise
 
-        #resets the player_to_idx mapping and limits it to a filtered subset based on average minutes played
+        #resets the player_to_idx mapping and makes it a filtered subset of all players
         self.player_to_idx = {}
 
-        #each player gets is checked to have an average minutes played above a certain cutoff
+        #each player gets checked to have the minimum required number of games available in their match history
         idx = 0
         for player in self.players:
             game_log = self.recent_games(player)
@@ -504,6 +512,7 @@ class AllPlayerEmbeddingDatasetBuilder(DatasetBuilder):
 
 
     #----------------------------------------------------------
+    #given a player name return a one-hot vector for them
     def get_onehot_player(self, player):
         """
         Generates a one-hot encoded vector for the specified player.
@@ -525,9 +534,10 @@ class AllPlayerEmbeddingDatasetBuilder(DatasetBuilder):
             onehot[idx] = 1
             return onehot
     
+    #search existing dictionary of embeddings to return the player embedding as np
     def get_player_vector(self, player):
         """
-        Gets a vector embedding for the specified player.
+        Gets a vector embedding in np form for the specified player.
 
         Args:
             player (str): The name or identifier of the player to get a vector embedding for
@@ -597,13 +607,14 @@ class AllPlayerEmbeddingDatasetBuilder(DatasetBuilder):
         for column in columns:
             df[column] = (df[column] - combined_min) / (combined_max - combined_min)
 
+    #apply special normalization to the outputs to squish them into 0-1 range
     def normalize_outputs(self):
         """
         Normalizes the output data (`self.Y`) column-wise using appropriate scaling methods
         and returns the scaled input (`self.X`) and output (`self.Y`) arrays.
 
-        Columns with negative values are scaled using StandardScaler (Z-score scaling),
-        while columns with only non-negative values are scaled using MinMaxScaler.
+        Columns with negative values or high variability are scaled using StandardScaler (Z-score scaling),
+        and all columns are then scaled using MinMaxScaler.
 
         Returns:
         --------
@@ -616,8 +627,6 @@ class AllPlayerEmbeddingDatasetBuilder(DatasetBuilder):
 
         column_names = self.select_columns + (2 * self.select_columns[1:])
         df = pd.DataFrame(self.Y, columns=column_names)
-
-        #print(df['PTS'])
         
         #some columns need to be put on standard scaling, then squished into 0-1 range with minmax. PTS and +/-
         for group_col in self.zscore_columns:
@@ -632,8 +641,7 @@ class AllPlayerEmbeddingDatasetBuilder(DatasetBuilder):
 
             self.logger.debug(f'Minmax normalized columns: {group_col}')
 
-        #print(df['PTS'])
-
+        #turn back into a np array
         Y_scaled = df.to_numpy()
         assert(self.Y.shape == Y_scaled.shape)
         self.logger.info(f'Completed normalization for outputs.')
@@ -644,6 +652,7 @@ class AllPlayerEmbeddingDatasetBuilder(DatasetBuilder):
 
 
     #----------------------------------------------------------
+    #collects training data for each player
     def set_pre_normalized_io(self):
         """
         Generates pre-normalized input (X) and output (Y) datasets for all players.
@@ -668,6 +677,7 @@ class AllPlayerEmbeddingDatasetBuilder(DatasetBuilder):
         self.logger.info(f'Completed preparing pre-normalized inputs and outputs: {self.X.shape[0]} games/data points')
         return self.X, self.Y
 
+    #collects training data for each game for a single player
     def pre_normalized_player_io(self, player):
         """
         Processes the pre-normalized input and output for a single player.
@@ -711,6 +721,7 @@ class AllPlayerEmbeddingDatasetBuilder(DatasetBuilder):
         #print(y.shape)
         return x, y
 
+    #collects training datapoint for a single game for a single player
     def pre_normalized_game_output(self, player, game_id):
         """
         Calculates the pre-normalized output for a single game.
@@ -737,7 +748,7 @@ class AllPlayerEmbeddingDatasetBuilder(DatasetBuilder):
         is_player = game['PLAYER'] == player
 
         if not is_player.any(): #break out when player didnt play in this game
-            self.logger.debug(f'Edge case! {player} played 0 minutes in game {game_id}, despite a game log entry.')
+            self.logger.debug(f'Edge case! {player} played 0 minutes in game {game_id}, despite a game log entry. Ignoring game.')
             return None
 
         player_team = game.loc[is_player, 'TEAM'].iloc[0] #find the player's team at the time the game was played (consider trades)
@@ -757,6 +768,7 @@ class AllPlayerEmbeddingDatasetBuilder(DatasetBuilder):
 
         return y
 
+    #computes the weighted average stats for a dataframe of some players
     def weighted_average_team(self, df):
         """
         Given a dataframe containing a team's data of self.select_columns, compute the weighted average of the team
@@ -782,13 +794,14 @@ class AllPlayerEmbeddingDatasetBuilder(DatasetBuilder):
 
 
     #----------------------------------------------------------
+    #prep the entire thing
     def set_batches(self):
         self.filter_players()
         self.set_pre_normalized_io()
         self.normalize_outputs()
         self.logger.info(f'DatasetBuilder preparation completed for making all player embeddings.') 
 
-        print(self.Y)
+        #print(self.Y)
 
 
 #db = AllPlayerEmbeddingDatasetBuilder()

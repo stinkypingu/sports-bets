@@ -1,4 +1,4 @@
-from Extractors.ESPNExtractor import ESPNNBAExtractor
+from extractors.espn_extractor import ESPNNBAExtractor
 from abc import ABC, abstractmethod
 import logging
 import numpy as np
@@ -7,7 +7,7 @@ from sklearn.model_selection import train_test_split
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
-class DatasetBuilder(ABC):
+class BaseDatasetBuilder(ABC):
     def __init__(self):
 
         self.ext = ESPNNBAExtractor()
@@ -139,4 +139,15 @@ class DatasetBuilder(ABC):
 
 
     def get_io_sizes(self):
-        return self.X.shape[1], self.Y.shape[1]
+        """
+        Returns the input and output sizes for the model.
+
+        The input size is determined by the number of features in `self.X`, 
+        and the output size is determined by the number of target variables in `self.Y`.
+
+        Returns:
+            tuple: A tuple containing two integers:
+                - The number of columns in `self.X` (input size).
+                - The number of columns in `self.Y` (output size).
+        """
+        return (self.X.shape[1], self.Y.shape[1])
