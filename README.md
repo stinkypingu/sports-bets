@@ -6,7 +6,7 @@ This repo will support sports betting on the NBA. Data is extracted from ESPN, a
 
 1. Extract all the data from ESPN. Luckily no security on the website. The folder **/Extractors/** contains all the stuff used to extract data from the website. It uses mostly just get-requests and scans the webpage for data, compiling it into a csv file for most cases. ***This will require an extractor for betting lines for comparison in the future.***
 
-2. Make player embeddings. This follows the Word2Vec skip-gram strategy, but instead of context words, uses expected stats as output. ***Try more hidden layers to find deeper connections?***
+2. Make player embeddings. This follows the Word2Vec skip-gram strategy, but instead of context words, uses expected stats as output. Note that adding more layers without adding non linearity is mathematically the same as just doing a single layer, and adding non linearity would ruin the linear relationships between embeddings.
     - Inputs are one-hot encoded players, so like [0 1 0 0 0 ...] for the current player.
     - Outputs are a combination of many things:
         - The current player's stats for a game: [PTS, REB, 3PM, ...] 

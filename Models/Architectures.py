@@ -8,31 +8,14 @@ class EmbeddingModel(nn.Module):
         self.output = nn.Linear(hidden_size, output_size)
 
     def forward(self, x):
-        hidden_out = self.hidden(x)
-        out = self.output(hidden_out)
-        return out, hidden_out
-    
-
-class DeepEmbeddingModel(nn.Module):
-    def __init__(self, input_size, hidden_size_1, hidden_size_2, hidden_size_3, output_size):
-        super(DeepEmbeddingModel, self).__init__()
-
-        self.hidden_1 = nn.Linear(input_size, hidden_size_1)
-        self.hidden_2 = nn.Linear(hidden_size_1, hidden_size_2)
-        self.hidden_3 = nn.Linear(hidden_size_2, hidden_size_3)
-        self.output = nn.Linear(hidden_size_3, output_size)
-
-    def forward(self, x):
-        x = self.hidden_1(x)
-        x = self.hidden_2(x)
-        x = self.hidden_3(x)
-        out = self.output(x)
-        return out
-    
-    def embedding(self, x):
-        x = self.hidden_1(x)
-        x = self.hidden_2(x)
+        x = self.hidden(x)
+        x = self.output(x)
         return x
+    
+    def get_embedding(self, x):
+        emb = self.hidden(x)
+        return emb
+    
 
 
 class PredictionModel(nn.Module):
