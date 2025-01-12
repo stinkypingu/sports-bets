@@ -8,10 +8,10 @@ import logging
 import os
 import time
 from pathlib import Path
-from Extractors.Extractor import Extractor #call this from the root directory
+from extractors.base_extractor import BaseExtractor #call this from the root directory
 
 
-class ESPNNBAExtractor(Extractor):
+class ESPNNBAExtractor(BaseExtractor):
     def __init__(self):
         super().__init__()
         self.base_url = 'https://www.espn.com/nba'
@@ -33,29 +33,6 @@ class ESPNNBAExtractor(Extractor):
 
         self.game_ids_file = self.games_dir / 'game_ids.json'
         self.game_ids = None
-
-        #logging
-        self.logger = logging.getLogger(self.__class__.__name__)
-        self.logger.setLevel(logging.INFO)
-        handler = logging.StreamHandler()
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        handler.setFormatter(formatter)
-        self.logger.addHandler(handler)
-        self.logger.propagate = False  #prevent logging from propagating to the root logger
-
-
-
-    #----------------------------------------------------------
-    #change logging level
-    def set_logger_level(self, level):
-        """Change the logging level for the logger and its handlers."""
-        if isinstance(level, int) or level in logging._nameToLevel:
-            self.logger.setLevel(level)
-            for handler in self.logger.handlers:
-                handler.setLevel(level)
-        else:
-            raise ValueError(f"Invalid logging level: {level}. Use one of {list(logging._nameToLevel.keys())}.")
-        return
 
 
 

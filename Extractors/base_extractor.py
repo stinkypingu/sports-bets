@@ -3,10 +3,33 @@ import re
 import html
 import logging
 
-class Extractor():
+class BaseExtractor():
     def __init__(self):
-        pass
+
+        #logger setup
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger.setLevel(logging.INFO)
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
+        self.logger.addHandler(handler)
+        self.logger.propagate = False  # Prevent logging from propagating to the root logger
+
     
+    #----------------------------------------------------------
+    #change logging level
+    def set_logger_level(self, level):
+        """Change the logging level for the logger and its handlers."""
+        if isinstance(level, int) or level in logging._nameToLevel:
+            self.logger.setLevel(level)
+            for handler in self.logger.handlers:
+                handler.setLevel(level)
+        else:
+            raise ValueError(f"Invalid logging level: {level}. Use one of {list(logging._nameToLevel.keys())}.")
+        return
+    
+
+    #----------------------------------------------------------
     #fetches the raw html webpage
     def fetch_webpage(self, url):
         """Fetches raw HTML content from a given URL."""
@@ -17,10 +40,10 @@ class Extractor():
             if response.status_code == 200:
                 return response.text
             else:
-                logging.warning(f'failed with status code: {response.status_code}')
+                self.logger.warning(f'failed with status code: {response.status_code}')
                 return None
         except Exception as e:
-            logging.error(f'error fetching webpage: {e}')
+            self.logger.error(f'error fetching webpage: {e}')
             return None
 
     #helper function for extracting from html
@@ -73,6 +96,7 @@ class Extractor():
         return content
 
     
+    #----------------------------------------------------------
     #get the headers
     def extract_table_data(self, content, section='head'):
         """
@@ -172,5 +196,6 @@ class Extractor():
             tables[table_index] = self.clean_table(table, strip_tags=strip_tags, remove_tags=remove_tags, ignore_columns=ignore_columns)
         return tables
 
+    #----------------------------------------------------------
     def extract_list_data():
         pass
