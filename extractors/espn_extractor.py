@@ -298,8 +298,8 @@ class ESPNNBAExtractor(BaseExtractor):
             df['LOC'] = df['OPP'].apply(lambda x: self.clean_string(x, select_index=0).lower())
             df['OPP'] = df['OPP'].apply(lambda x: self.select_regex(x, r'/name/(.*?)/'))
             
-            df['GAMEID'] = df['RESULT'].apply(lambda x: self.select_regex(x, r'gameId[/=](.*?)[/"]')) #this is to accommodate live game links
-            df['GAMEID'] = df['GAMEID'].apply(lambda x: int(x) if isinstance(x, str) and x.isdigit() else None) #postponements and cancellations
+            df['GAMEID'] = df['RESULT'].apply(lambda x: self.select_regex(x, r'gameId[/=](\d+)[/"]')) #this is to accommodate live game links
+            df['GAMEID'] = pd.to_numeric(df['GAMEID'], errors='coerce').astype('Int64') #postponements and cancellations
             
             df['RESULT'] = df['RESULT'].apply(lambda x: self.clean_string(x, select_index=0))
 
@@ -340,7 +340,7 @@ class ESPNNBAExtractor(BaseExtractor):
         if sched_file_path.exists() and not update:
             self.logger.debug(f'Reading existing team schedule file: {team_abbr}')
             try:
-                df = pd.read_csv(sched_file_path)
+                df = pd.read_csv(sched_file_path, dtype={'GAMEID': 'Int64'})
                 return df
             
             except Exception as e:
@@ -381,6 +381,9 @@ class ESPNNBAExtractor(BaseExtractor):
         """
         df = self.get_team_sched(team_abbr)
         df = df[df['RESULT'] != 'TBD']
+
+        #drop rows where the opps are invalid or incorrectly extracted
+        df = df[df['OPP'].apply(lambda x: len(x) <= 5)]
         return df
 
 
@@ -480,7 +483,7 @@ class ESPNNBAExtractor(BaseExtractor):
 
         REQUIRES all player game logs to be set already.
 
-        NOTE: DOES NOT INCLUDE PRESEASON GAMES (based off team regular season schedule)
+        NOTE: INCLUDES preseason games, as long as they were in the schedule.
 
         If the file already exists and the update parameter is False, 
         the method will skip processing and return the file data. If the file doesn't exist or 
@@ -496,7 +499,7 @@ class ESPNNBAExtractor(BaseExtractor):
             self.logger.debug(f'Reading cached game_ids.')
             return self.game_ids
         
-        #file that contains a dictionary with player names with corresponding team
+        #file that contains all the game_ids
         file_path = self.game_ids_file
         file_path.parent.mkdir(parents=True, exist_ok=True) #ensure parent directory exists
 
@@ -524,8 +527,9 @@ class ESPNNBAExtractor(BaseExtractor):
             sched = self.get_team_sched_played(team_abbr)
             ids = sched['GAMEID']
 
+            #convert from Int64 in pandas to int
             for id in ids:
-                game_ids[id] = 0
+                game_ids[int(id)] = 0
 
         #save newly compiled data
         with open(file_path, 'w') as f:
@@ -587,7 +591,7 @@ class ESPNNBAExtractor(BaseExtractor):
 
             #separate the win/loss and the final score
             df['SCORE'] = df['RESULT'].apply(lambda x: self.clean_string(x))
-            df['GAMEID'] = df['RESULT'].apply(lambda x: self.select_regex(x, r'/gameId/(.*?)/'))
+            df['GAMEID'] = df['RESULT'].apply(lambda x: int(self.select_regex(x, r'/gameId/(.*?)/')))
             df['RESULT'] = df['RESULT'].apply(lambda x: self.strip_tag(x, 'div', 'class="ResultCell')[0])
 
             #separate made-attempts into two separate columns
@@ -860,6 +864,8 @@ class ESPNNBAExtractor(BaseExtractor):
         pd.DataFrame
             A pandas DataFrame containing the game data.
         """
+        game_id = int(game_id)
+
         #check for saved game file
         file_path = self.games_dir / f'{game_id}.csv'
         file_path.parent.mkdir(parents=True, exist_ok=True)  #ensure directory structure exists
