@@ -12,20 +12,20 @@ class StatDatasetBuilder(BaseDatasetBuilder):
 
     Attributes:
     -----------
-    max_games : int
-        The maximum number of previous games to use in the dataset for each team (default is 20).
-    
-    embedding_size : int
-        The size of the embedding vector for each player (default is 30).
-    
+    player_embedding : dict
+        Mapping dictionary of player embeddings.    
+
     select_columns : list
         A list of the statistical columns used in the dataset, typically ['REB', 'AST', 'STL', 'BLK', 'PTS'].
     
     metric : str or None
         The metric used to determine the over/under outcome (e.g., 'PTS', 'AST'). Must be set before building the dataset.
+
+    scaler : str
+        The scaling method for the output.
     
-    player_embeddings : numpy.ndarray or None
-        A 2D array storing the embeddings for each player, indexed by player ID.
+    max_games : int
+        The maximum number of previous games to use in the dataset for each team (default is 20).
     
     usable_games : list or None
         A list of the games that can be used to build the dataset.
@@ -38,26 +38,26 @@ class StatDatasetBuilder(BaseDatasetBuilder):
     Y : numpy.ndarray
         The target labels for the dataset. Shape is (num_samples, 2), representing the percentage for [under, over].
     """
-    def __init__(self, embedding_size=30): 
+    def __init__(self, player_embeddings, metric='PTS', scaler='zscore', max_games=20, offset=0): 
         super().__init__()
 
-        #values for this databuilder
-        self.embedding_size = embedding_size #embedding size for a single player
+        #embeddings for each player
+        self.player_embeddings = player_embeddings
 
+        #selectable columns from the data to make a dataset, there are others like PRA which is handled elsewhere
         self.select_columns = ['REB', 'AST', 'STL', 'BLK', 'PTS']
 
-        #which metric to measure stat on
-        self.metric = None
-        self.scaler = None
+        #which metric to measure stat on, these will get changed by set_metric_scaler
+        self.metric = metric
+        self.scaler = scaler
 
-        #embeddings for each player
-        self.player_embeddings = None
-
-        #games to build the dataset out of
+        #filtering games to use in the dataset
+        self.max_games = max_games
+        self.offset = offset
         self.usable_games = None
 
         #numpy arrays of the inputs and corresponding outputs
-        self.X = np.empty((0, ((self.embedding_size * 3) + 2))) #+2 for home/away neurons
+        self.X = np.empty((0, 0)) #3* player embedding size +2 for home/away neurons
         self.Y = np.empty((0, 1)) #percentages for [under, over]
 
         #for building a specific problem
@@ -69,19 +69,9 @@ class StatDatasetBuilder(BaseDatasetBuilder):
 
     #----------------------------------------------------------
     #sets the metric, ex: PTS, PRA
-    def set_metric_scaler(self, metric, scaler):
+    def set_metric_scaler(self):
         """
-        Sets the metric for estimation based on the provided inputs.
-
-        Args:
-        --------
-        metric : str
-            The name of the metric to be used for regression. This metric should be one 
-            of the columns selected in `self.select_columns`.
-        scale : str
-            The type of scaler to use for normalization. Valid options are:
-            - 'minmax': Uses MinMaxScaler for normalization.
-            - 'zscore' or 'standard': Uses StandardScaler for normalization.
+        Sets the metric for estimation based on the provided inputs. Updates the metric and scaler to be used.
         """
         special_columns = {
             'PRA': ['PTS', 'REB', 'AST'],
@@ -89,12 +79,11 @@ class StatDatasetBuilder(BaseDatasetBuilder):
             'RA' : ['AST', 'REB'],
         }
 
-        if metric in special_columns:
-            self.metric = special_columns[metric]
+        if self.metric in special_columns.keys():
+            self.metric = special_columns[self.metric]
 
         else:
-            assert(metric in self.select_columns)
-            self.metric = metric
+            assert(self.metric in self.select_columns)
 
         #setting the scaler to use
         valid_scales = {
@@ -102,9 +91,10 @@ class StatDatasetBuilder(BaseDatasetBuilder):
             'zscore': self.standard_scaler,
             'standard': self.standard_scaler
         }
-        assert(scaler in valid_scales)
-        if scaler in valid_scales:
-            self.scaler = valid_scales[scaler]
+
+        assert(self.scaler in valid_scales.keys())
+        if self.scaler in valid_scales.keys():
+            self.scaler = valid_scales[self.scaler]
 
         self.logger.info(f'Set the metric as {self.metric}, and scaler to {self.scaler}')
 
@@ -144,59 +134,6 @@ class StatDatasetBuilder(BaseDatasetBuilder):
 
 
     #----------------------------------------------------------
-    def set_embeddings(self, embeddings=None, embeddings_file=None):
-        """
-        Saves player vector embedding dictionary to this object instance.
-
-        Args:
-            embeddings (dict, optional): A dictionary of player embeddings to load.
-            embedding_file (str, optional): Path to a CSV file containing player embeddings.
-
-        Returns:
-            None
-        """
-        if self.player_embeddings is not None:
-            self.logger.info(f'Overwriting pre-existing player vector embeddings.')
-        
-        #load in the raw embeddings
-        if embeddings is not None:
-            self.player_embeddings = embeddings
-            self.logger.debug(f'Reading in player vector embeddings from raw data.')
-
-        #load in embeddings from a file
-        elif embeddings_file is not None:
-            df = pd.read_csv(embeddings_file)
-            df = df[['PLAYER', 'EMBEDDING']] #keep only these columns
-            
-            #convert the 'EMBEDDING' column to actual NumPy arrays
-            df['NUMPY EMBEDDING'] = df['EMBEDDING'].apply(
-                lambda x: np.fromstring(x.strip('[]'), sep=' ')
-            )
-
-            #ensure correct read of numpy arrays by checking embeddings having the same length
-            embedding_lengths = df['NUMPY EMBEDDING'].apply(len).unique()
-            if len(embedding_lengths) == 1:
-
-                #reset embedding size, and corresponding expected input dimensions
-                self.embedding_size = embedding_lengths[0]
-                self.X = np.empty((0, ((self.embedding_size * 3) + 2)))
-                self.logger.info(f'Embedding size of each player is set to {self.embedding_size}.')
-
-            else:
-                self.logger.error(f'Failure in each player having same embedding size.')
-                raise ValueError(f'Embeddings have inconsistent lengths.')
-    
-            #put it into a dictionary
-            self.player_embeddings = df.groupby('PLAYER')['NUMPY EMBEDDING'].first().to_dict()
-            self.logger.debug(f'Reading in player vector embeddings from embedding file.')
-        
-        #nothing to read the embeddings from
-        else:
-            self.logger.error(f'Failed to save new player vector embeddings.')
-            raise
-
-        return None
-
     def get_player_embedding(self, player):
         """
         Retrieves the vector embedding for the specified player.
@@ -231,7 +168,7 @@ class StatDatasetBuilder(BaseDatasetBuilder):
 
 
     #----------------------------------------------------------
-    def filter_game_ids(self, max_games=20, offset=0):
+    def filter_game_ids(self):
         """
         Filters games based on their recency by team schedule and collects unique game ids.
 
@@ -257,8 +194,8 @@ class StatDatasetBuilder(BaseDatasetBuilder):
             all_game_ids = sched['GAMEID'].tolist()
             
             #indices for slicing the games to take
-            oldest_index = max(len(all_game_ids) - max_games - offset, 0)
-            newest_index = len(all_game_ids) - offset
+            oldest_index = max(len(all_game_ids) - self.max_games - self.offset, 0)
+            newest_index = len(all_game_ids) - self.offset
 
             if newest_index < 2:
                 self.logger.error(f'Failed to find enough game data from team schedule: {team_abbr}')
@@ -293,12 +230,19 @@ class StatDatasetBuilder(BaseDatasetBuilder):
             - self.X: A NumPy array containing input features for all players.
             - self.Y: A NumPy array containing output features for all players.
         """
+        all_x = []
+        all_y = []
         for game in self.usable_games:
             x, y = self.game_io(game)
 
             #append game's data to the main input and output arrays
-            self.X = np.vstack([self.X, x])
-            self.Y = np.vstack([self.Y, y])
+            all_x.append(x)
+            all_y.append(y)
+            #self.X = np.vstack([self.X, x])
+            #self.Y = np.vstack([self.Y, y])
+
+        self.X = np.vstack(all_x)
+        self.Y = np.vstack(all_y)
 
         assert(self.X.shape[0] == self.Y.shape[0])
         self.logger.info(f'Completed preparing inputs and outputs: {self.X.shape[0]} data points from {len(self.usable_games)} games.')
@@ -447,10 +391,9 @@ class StatDatasetBuilder(BaseDatasetBuilder):
 
 
     #----------------------------------------------------------
-    def set_batches(self, embeddings=None, embeddings_file=None, metric='PTS', scaler='zscore', max_games=20, offset=0):
-        self.set_embeddings(embeddings=embeddings, embeddings_file=embeddings_file)
-        self.set_metric_scaler(metric=metric, scaler=scaler)
-        self.filter_game_ids(max_games=max_games, offset=offset)
+    def set_batches(self):
+        self.set_metric_scaler()
+        self.filter_game_ids()
         self.set_io()
         self.normalize_outputs()
         self.logger.info(f'DatasetBuilder preparation completed for making stats data, use get_batches(batch_size) to get batches.')

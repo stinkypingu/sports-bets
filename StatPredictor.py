@@ -1,64 +1,45 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from DatasetBuilders.StatDatasetBuilder import StatDatasetBuilder
-from Models.Architectures import StatModel
+from dataset_builders.stat_dataset_builder import StatDatasetBuilder
+from architectures import StatModel
+from train import PlayerEmbeddings
 import pandas as pd
 import numpy as np
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 
-max_games=10
-offset=1
-required_minutes=20
-significant_minutes=15
-hidden_size = 100
 
 #
-#format is max_games, offset, req_min, sig_min, hidden_size
-embedding_file = f'Embeddings/Players/emb_player_{max_games}_{offset}_{required_minutes}_{significant_minutes}_{hidden_size}.csv'
+embedder = PlayerEmbeddings(embedding_size=100)
+embs = embedder.load()
 
 metric='PTS'
-
-max_games=30
+evals = [
+    ('den', '@', 'dal'),
+    ('dal', 'vs', 'den')
+]
+max_games=100
 offset=0
 
-pdb = StatDatasetBuilder()
-pdb.set_batches(embeddings_file=embedding_file, metric=metric, scaler='zscore', max_games=max_games, offset=offset)
+pdb = StatDatasetBuilder(player_embeddings=embs, metric=metric, scaler='minmax', max_games=max_games, offset=offset)
+pdb.set_batches()
 
 #d schroder reb under
 #j morant reb under
 #j mcdaniels reb 6.0
-#c sexton pra 26.4 line 30.5
+#!c sexton pra 26.4 line 30.5
 #j jaquez pra 16.5 line 22.5
-#d hunter pra 26.5 line 23.5
+#!d hunter pra 26.5 line 23.5
 #r dunn pra 11.1 line 15.5
 #houston pra unders?
-#j morant pra 28.5 line 34.5 + injury
-#d wade pra 15.7 line 11.5
+#!j morant pra 28.5 line 34.5 + injury
+#!d wade pra 15.7 line 11.5
 #g niang pra 15.9 line 12.5
 #r barrett hater bet?
 #g dick ra again?
 #d schroder pra 18.0 line 23.5
 
-evals = [
-    ('gs', '@', 'ind'),
-    ('ind', 'vs', 'gs'),
-    
-    ('no', '@', 'phi'),
-    ('phi', 'vs', 'no'),
-    
-    ('sac', '@', 'bos'),
-    ('bos', 'vs', 'sac'),
 
-    ('okc', '@', 'ny'),
-    ('ny', 'vs', 'okc'),
-
-    ('wsh', '@', 'chi'),
-    ('chi', 'vs', 'wsh'),
-
-    ('bkn', '@', 'den'),
-    ('den', 'vs', 'bkn'),
-]
 valid_evals = []
 for e in evals:
     if (e[0] not in pdb.team_names or e[2] not in pdb.team_names):

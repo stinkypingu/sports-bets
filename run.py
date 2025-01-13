@@ -1,7 +1,23 @@
 import logging
 import pandas as pd
-from Extractors.ESPNExtractor import ESPNNBAExtractor
-from DatasetBuilders.PlayerEmbeddingDatasetBuilder import AllPlayerEmbeddingDatasetBuilder
+from extractors import ESPNNBAExtractor
+from dataset_builders import StatDatasetBuilder
+from train import PlayerEmbeddings
+
+nbaext = ESPNNBAExtractor()
+#print(nbaext.get_team_sched('atl') )
+#print(nbaext.get_team_sched_played('utah'))
+#nbaext.get_game_ids(update=True)
+nbaext.set_new()
+#print(nbaext.extract_team_sched('atl'))
+#nbaext.set_all_team_data()
+#nbaext.set_all()
+
+#embedder = PlayerEmbeddings(req_games=5, max_games=100, offset=0, embedding_size=100, lr=0.001, epochs=30, emb_dir='embeddings')
+#x = embedder.load(update=False)
+#print(len(x))
+
+
 
 #db = AllPlayerEmbeddingDatasetBuilder(req_games=8, max_games=10)
 #db.set_logger_level(logging.DEBUG)
@@ -11,9 +27,9 @@ from DatasetBuilders.PlayerEmbeddingDatasetBuilder import AllPlayerEmbeddingData
 pd.set_option('display.max_rows', None)  # Show all rows
 pd.set_option('display.max_columns', None)  # Show all columns
 
-nbaext = ESPNNBAExtractor()
+#nbaext = ESPNNBAExtractor()
 #print(nbaext.get_team_sched('bos', update=False))
-nbaext.set_all()
+#nbaext.set_all()
 #gamelog = nbaext.extract_player_game_log('ny', 'og-anunoby')
 #print(gamelog)
 

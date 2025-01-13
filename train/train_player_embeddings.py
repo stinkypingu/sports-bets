@@ -80,6 +80,10 @@ class PlayerEmbeddings():
             with open(self.emb_file, 'r') as f:
                 self.embeddings = json.load(f)
             
+            #return to np from serialized lists
+            for player, emb in self.embeddings.items():
+                self.embeddings[player] = np.array(emb)
+
             return self.embeddings
 
         else:
@@ -157,9 +161,6 @@ class PlayerEmbeddings():
 
                 emb = model.get_embedding(onehot_tensor)
                 emb = emb.numpy()
-
-                #json serialization
-                data[player] = emb.tolist()
         
         #cache this
         self.embeddings = data
@@ -182,7 +183,7 @@ class PlayerEmbeddings():
 
         self.logger.info(f'Saving embeddings to file: {self.emb_file}')
         with open(self.emb_file, 'w') as f:
-            json.dump(self.embeddings, f)
+            json.dump(self.embeddings, f) #note that this automatically parses np arrays as lists so they must be reconverted when extracting later
         return
 
 
