@@ -983,7 +983,7 @@ class ESPNNBAExtractor(BaseExtractor):
             None
         """
         #update the game ids file
-        game_ids = self.get_game_ids(update=update)
+        game_ids = self.get_game_ids(update=True)
         self.logger.info(f'Completed setting game_ids.')
 
         #select only missing games
@@ -1003,7 +1003,7 @@ class ESPNNBAExtractor(BaseExtractor):
         #write estimated time to complete
         #sleep is called once per, and +0.5 estimated processing time
         eta = (sleep + 0.5) * len(update_game_ids)
-        self.logger.info(f'Estimated time to complete setting boxscore data for all games: ~{int(eta // 60)}m{int(eta % 60)}s')
+        self.logger.info(f'Estimated time to complete setting boxscore data for {len(update_game_ids)} games: ~{int(eta // 60)}m{int(eta % 60)}s')
 
         for game_id in update_game_ids:
             _ = self.get_game(game_id, update=update)
