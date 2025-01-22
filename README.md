@@ -26,9 +26,9 @@ This repo will support sports betting on the NBA. Data is extracted from ESPN, a
     - After training, denormalize output estimates using the same scale from the DatasetBuilder to compare true differences with expected values.
 
 
-## Big changes that I will be making
+## Big changes that have been made since project inception
 
-* **Embeddings:**
+* **Embeddings and Embedding Architecture:**
     - Add in 2P stats, which is FG - 3P. This might help explicitly identify players who are predominantly 2P shooters.
         - This can be modified in the ESPNExtractor to setup the dataset so it doesn't have to be manually calculated each time, and just read from the .csv file instead.
     - Additionally, include the current player's MIN, since their minutes played each game is extremely important. 
@@ -37,6 +37,16 @@ This repo will support sports betting on the NBA. Data is extracted from ESPN, a
         - Team average stats weighted by each player's minutes played, excluding the current player's stats: [PTS, REB, 3PM, ... 2PM, 2PA]
         - Opps team average stats, weighted by each player's minutes played: [PTS, REB, 3PM, ... 2PM, 2PA]
     - Hopefully this will better capture player's performance overall by including MIN and 2P stats.
+
+    - Add CBOW in addition to Skip-Gram style embeddings.
+        - For Skip-Gram, use one hot player as input, and MSELoss for stats as outputs. This could potentially be skewed due to outliers, consider a different loss function like L1 or Robust L1/L2.
+        - For CBOW, use stats as input and one hot player as output using CrossEntropyLoss. Potential advantages are faster convergence and accounting for outliers. 
+    - Consider ignoring team data.
+        - No longer includes data about how a player performs against or with certain types of teams/players.
+
+
+
+## Big changes that I will be making
 
 * **Model Architecture:**
     - The biggest issues with the current simple feed forward is that it does not do a good job of capturing the other players in the game, besides the current player. It takes a simple average of 'influential' players, which can be biased and does not include other players who might normally play a lot less but might play more in certain kinds of games. - Consider an attention based architecture:
