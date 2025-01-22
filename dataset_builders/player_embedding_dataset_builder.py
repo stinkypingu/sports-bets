@@ -402,7 +402,7 @@ class PlayerEmbeddingDatasetBuilder(BaseDatasetBuilder):
         max_games (int): The maximum number of games to include from each player's match history to make an embedding.
         offset (int): Number of most recent games to ignore.
     """
-    def __init__(self, req_games=5, max_games=100, offset=0): 
+    def __init__(self, req_games=5, max_games=100, offset=0, ignore_teams=False): 
         super().__init__()
 
         #values for this databuilder
@@ -430,6 +430,12 @@ class PlayerEmbeddingDatasetBuilder(BaseDatasetBuilder):
                                ['3PM', '3PA'],
                                ['FTM', 'FTA'],
                                ['2PM', '2PA']]
+    
+        #whether to include teams weighted data for the outputs
+        self.ignore_teams = ignore_teams
+
+        #TODO: for team stat representations, consider dropping certain stats, normalizing differently, etc
+        #
 
         #list of all players, and their corresponding index
         self.players = self.ext.get_player_to_team().keys()
@@ -625,7 +631,12 @@ class PlayerEmbeddingDatasetBuilder(BaseDatasetBuilder):
         assert not np.isnan(self.X).any(), "Input data contains NaN values before scaling."
         assert not np.isnan(self.Y).any(), "Input data contains NaN values before scaling."
 
-        column_names = self.select_columns + (2 * self.select_columns[1:])
+        #account for just the player stats or including team stats
+        if not self.ignore_teams:
+            column_names = self.select_columns + (2 * self.select_columns[1:])
+        else:
+            column_names = self.select_columns
+
         df = pd.DataFrame(self.Y, columns=column_names)
         
         #some columns need to be put on standard scaling, then squished into 0-1 range with minmax. PTS and +/-
@@ -669,15 +680,21 @@ class PlayerEmbeddingDatasetBuilder(BaseDatasetBuilder):
         self.logger.info(f'Preparing pre-normalized inputs and outputs for players with at least {self.req_games} games played (req_games), ' + 
                          f'up to {self.max_games} in their history (max_games), ignoring the most {self.offset} recent games (offset). This might take a while.')
         
+        all_x, all_y = [], []
         for player in self.get_valid_players():
             x, y = self.pre_normalized_player_io(player)
 
             #append player's data to the main input and output arrays
-            self.X = np.vstack([self.X, x])
-            self.Y = np.vstack([self.Y, y])
+            all_x.append(x)
+            all_y.append(y)
+
+            #self.X = np.vstack([self.X, x])
+            #self.Y = np.vstack([self.Y, y])
+        self.X = np.vstack(all_x)
+        self.Y = np.vstack(all_y)
         
         assert(self.X.shape[0] == self.Y.shape[0])
-        self.logger.info(f'Completed preparing pre-normalized inputs and outputs: {self.X.shape[0]} games/data points')
+        self.logger.info(f'Completed preparing pre-normalized inputs and outputs: {self.X.shape[0]} data points, with {self.Y.shape[1]} output features.')
         return self.X, self.Y
 
     #collects training data for each game for a single player
@@ -759,15 +776,21 @@ class PlayerEmbeddingDatasetBuilder(BaseDatasetBuilder):
 
         #filter dataframe using p (player), t (player's team wihtout the player), o (opponent team)
         p_df = game[is_player][self.select_columns]
-        t_df = game[~is_player & on_team][self.select_columns]
-        o_df = game[~on_team][self.select_columns]
 
         #turn these into pd.Series, and then into numpy rows for faster concatenation
         p_stats = p_df.iloc[0].to_numpy()
-        t_avg = self.weighted_average_team(t_df).to_numpy()
-        o_avg = self.weighted_average_team(o_df).to_numpy()
 
-        y = np.hstack([p_stats, t_avg, o_avg])
+        #perform above operations but for teams aggregated data
+        if not self.ignore_teams:
+            t_df = game[~is_player & on_team][self.select_columns]
+            o_df = game[~on_team][self.select_columns]
+
+            t_avg = self.weighted_average_team(t_df).to_numpy()
+            o_avg = self.weighted_average_team(o_df).to_numpy()
+
+            y = np.hstack([p_stats, t_avg, o_avg])
+        else:
+            y = p_stats
 
         return y
 
@@ -808,5 +831,11 @@ class PlayerEmbeddingDatasetBuilder(BaseDatasetBuilder):
 
 
 #db = AllPlayerEmbeddingDatasetBuilder()
+
+
+
+
+
+
 
 
