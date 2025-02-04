@@ -164,20 +164,30 @@ class ESPNNBAExtractor(BaseExtractor):
             flattened_headers = list(itertools.chain.from_iterable(unpeel))
 
             #extract body data
-            body_tables = self.clean_tables(self.extract_table_data(webpage, section='body'))
-            bodies = list(zip(*body_tables))
+            body_tables = self.clean_tables(self.extract_table_data(webpage, section='body'), ignore_columns=[0])
+            bodies = list(zip(*body_tables)) #weird espn formatting as three tables stuck together side by side
             flattened_bodies = [list(itertools.chain(*body)) for body in bodies]
 
             #make dataframe and remove totaled row, drop duplicate columns
             df = pd.DataFrame(flattened_bodies, columns=flattened_headers)
-            df = df[df.iloc[:, 0] != 'Total']
             df = df.loc[:, ~df.columns.duplicated()]
 
             #rename Name column to PLAYER for codebase consistency
             df.rename(columns={'Name': 'PLAYER'}, inplace=True)
 
+            #drop players that have been traded away
+            df = df[~df['PLAYER'].str.contains(r'\*', regex=True)]
+
+            #manually clean some columns after removing traded players
+            df['PLAYER'] = df['PLAYER'].apply(lambda x: self.clean_string(x, strip_tags=['span', 'a'], remove_tags=['svg']))
+            df['GP'] = df['GP'].apply(lambda x: self.clean_string(x, strip_tags=['span', 'a'], remove_tags=['svg']))
+            df['FGM'] = df['FGM'].apply(lambda x: self.clean_string(x, strip_tags=['span', 'a'], remove_tags=['svg']))
+
             #attempt fixing player name formatting
             df['PLAYER'] = df['PLAYER'].apply(lambda x: re.sub(r'[^\w\s-]', '', x.lower()).replace(' ', '-'))
+
+            #remove last totaled stats row
+            df = df.drop(df.index[-1]) 
 
             #extract the players with their ids
             pattern = r'data-player-uid.*?/_/id/(\d+)/(.*?)"'
@@ -697,6 +707,11 @@ class ESPNNBAExtractor(BaseExtractor):
 
             #make dataframe, clean and preprocess, and drop duplicate columns
             df = pd.DataFrame(flattened_bodies, columns=flattened_headers)
+
+            #clean
+            df = df.rename(columns={'NAME': 'PLAYER'})
+            df['PLAYER'] = df['PLAYER'].apply(lambda x: re.sub(r'[^\w\s-]', '', x.lower()).replace(' ', '-'))
+
             return df
         
         except Exception as e:
@@ -1021,6 +1036,7 @@ class ESPNNBAExtractor(BaseExtractor):
         self.set_all_team_data(update=True, sleep=sleep)
         self.set_all_player_game_logs(update=True, sleep=sleep)
         self.set_all_game_data(update=True, sleep=sleep)
+        self.get_injuries(update=True)
         return
     
     #compile everything, and only the new individual games
@@ -1031,6 +1047,7 @@ class ESPNNBAExtractor(BaseExtractor):
         self.set_all_team_data(update=True, sleep=sleep)
         self.set_all_player_game_logs(update=True, sleep=sleep)
         self.set_all_game_data(update=False, sleep=sleep)
+        self.get_injuries(update=True)
         return
 
 
