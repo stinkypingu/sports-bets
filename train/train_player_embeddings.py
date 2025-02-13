@@ -39,7 +39,7 @@ class PlayerEmbeddings():
         self.emb_dir = self.root_dir / emb_dir
 
         #filename will be simple for now, just the embedding dimension
-        self.emb_filename = f'emb_{method}_size{embedding_size}_epochs{epochs}.json'
+        self.emb_filename = f'emb_{method}_size{embedding_size}_epochs{epochs}_ignoreteams{int(ignore_teams)}.json'
         self.emb_file = self.emb_dir / self.emb_filename
 
         #contains the actual embeddings
