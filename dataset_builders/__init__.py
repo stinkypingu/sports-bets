@@ -2,3 +2,4 @@
 
 from .player_embedding_dataset_builder import PlayerEmbeddingDatasetBuilder
 from .stat_dataset_builder import StatDatasetBuilder
+from .stat_dataset_builder import StatAttentionDatasetBuilder

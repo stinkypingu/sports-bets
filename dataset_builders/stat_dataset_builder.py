@@ -794,12 +794,35 @@ class StatAttentionDatasetBuilder(BaseDatasetBuilder):
     def set_out_players(self, out_players):
         self.out_players = out_players
 
-    def build_input(self, home_team, away_team):
+    def build_input(self, home_team, away_team, home_incl=[], away_incl=[], home_excl=[], away_excl=[]):
 
         #player embedding raises exception if no valid embedding
         home_df = self.ext.get_team_stats(home_team)
         away_df = self.ext.get_team_stats(away_team)
 
+        #ensure they are current players and not traded players
+        home_current_players = self.ext.extract_team_roster(home_team)['PLAYER'].tolist()
+        away_current_players = self.ext.extract_team_roster(away_team)['PLAYER'].tolist()
+
+        home_df = home_df[home_df['PLAYER'].isin(home_current_players)]
+        away_df = away_df[away_df['PLAYER'].isin(away_current_players)]
+
+        #remove excluded players (and included players, which prevents duplicates)
+        home_df = home_df[~home_df['PLAYER'].isin(home_excl + home_incl)]
+        away_df = away_df[~away_df['PLAYER'].isin(away_excl + away_incl)]
+
+        #add included players and make maximum minutes to guarantee inclusion
+        default_values = {col: 0 for col in home_df.columns if col != 'PLAYER'}
+        default_values['MIN'] = np.finfo(np.float64).max  # Set 'MIN' to max float
+
+        home_new_rows = pd.DataFrame([{**default_values, 'PLAYER': player} for player in home_incl])
+        away_new_rows = pd.DataFrame([{**default_values, 'PLAYER': player} for player in away_incl])
+
+        home_df = pd.concat([home_df, home_new_rows], ignore_index=True)
+        #print(home_df)
+        away_df = pd.concat([away_df, away_new_rows], ignore_index=True)
+
+        #prune modified df
         home_df = self.prune_team_df(home_df, self.get_loc_embedding('vs'), out_players=True)
         away_df = self.prune_team_df(away_df, self.get_loc_embedding('@'), out_players=True)
 

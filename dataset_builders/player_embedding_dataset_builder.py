@@ -417,9 +417,10 @@ class PlayerEmbeddingDatasetBuilder(BaseDatasetBuilder):
 
         #19 values
         self.select_columns = ['MIN', '+/-', 'OREB', 'DREB', 'REB', 'AST', 'STL', 'BLK', 'TO', 'PF', 'PTS', 'FGM', 'FGA', '3PM', '3PA', 'FTM', 'FTA', '2PM', '2PA']
-        self.zscore_columns = [['+/-'],
-                               ['PTS']]
-        self.minmax_columns = [['MIN'],
+        self.zscore_columns = []
+        self.minmax_columns = [['+/-'],
+                               ['PTS'],
+                               ['MIN'],
                                ['OREB', 'DREB', 'REB'],
                                ['AST'],
                                ['STL'],
@@ -430,7 +431,8 @@ class PlayerEmbeddingDatasetBuilder(BaseDatasetBuilder):
                                ['3PM', '3PA'],
                                ['FTM', 'FTA'],
                                ['2PM', '2PA']]
-    
+
+
         #whether to include teams weighted data for the outputs
         self.ignore_teams = ignore_teams
 
@@ -482,8 +484,7 @@ class PlayerEmbeddingDatasetBuilder(BaseDatasetBuilder):
         Filters players based on their average minutes played and encodes the qualified players.
 
         This function resets `self.player_to_idx` and creates a subset of players 
-        who meet the `self.req_minutes` threshold for minimum minutes played in their 
-        recent games. Players who qualify are assigned an encoding index.
+        who have played enough games.
 
         Args:
             None

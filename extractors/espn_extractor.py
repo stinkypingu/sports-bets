@@ -175,8 +175,8 @@ class ESPNNBAExtractor(BaseExtractor):
             #rename Name column to PLAYER for codebase consistency
             df.rename(columns={'Name': 'PLAYER'}, inplace=True)
 
-            #drop players that have been traded away
-            df = df[~df['PLAYER'].str.contains(r'\*', regex=True)]
+            #drop players that have been traded (maybe include them and manually exclude, since it could be either way trades)
+            #df = df[~df['PLAYER'].str.contains(r'\*', regex=True)]
 
             #manually clean some columns after removing traded players
             df['PLAYER'] = df['PLAYER'].apply(lambda x: self.clean_string(x, strip_tags=['span', 'a'], remove_tags=['svg']))
@@ -398,6 +398,58 @@ class ESPNNBAExtractor(BaseExtractor):
 
 
 
+    #extract team_roster (df) from webpage
+    def extract_team_roster(self, team_abbr):
+        """
+        Extract team roster from the webpage for a given team abbreviation.
+
+        Args:
+            team_abbr (str): Team abbreviation (e.g., 'lal' for Los Angeles Lakers).
+
+        Returns:
+            pd.DataFrame: Extracted team roster as a DataFrame.
+        """
+        #find the link
+        url = f'{self.base_url}/team/roster/_/name/{team_abbr}'
+        self.logger.debug(f'Extracting team roster from webpage: {url}')
+
+        try:
+            webpage = self.fetch_webpage(url)
+            
+            #extract headers
+            head_tables = self.clean_tables(self.extract_table_data(webpage, section='head'))
+            unpeel = list(itertools.chain.from_iterable(head_tables)) #have to flatten twice, due to format of html
+            flattened_headers = list(itertools.chain.from_iterable(unpeel))
+
+            #extract body data
+            body_tables = self.clean_tables(self.extract_table_data(webpage, section='body'), strip_tags=['a', 'div'], ignore_columns=[])
+            bodies = list(zip(*body_tables)) #weird espn formatting as three tables stuck together side by side
+            flattened_bodies = [list(itertools.chain(*body)) for body in bodies]
+
+            #make dataframe and remove totaled row, drop duplicate columns
+            df = pd.DataFrame(flattened_bodies, columns=flattened_headers)
+            df = df.loc[:, ~df.columns.duplicated()]
+
+            #remove headshot image column
+            df = df.drop(df.columns[0], axis=1)
+
+            #rename Name column to PLAYER for codebase consistency
+            df.rename(columns={'Name': 'PLAYER'}, inplace=True)
+
+            #attempt fixing player name formatting
+            df['PLAYER'] = df['PLAYER'].apply(lambda x: re.sub(r'[^\w\s-]', '', x.lower()).replace(' ', '-'))
+
+            #remove last totaled stats row
+            df = df.drop(df.index[-1]) 
+
+            return df
+        
+        except Exception as e:
+            self.logger.error(f'Error extracting team stats from webpage: {e}')
+            raise
+
+
+
     #----------------------------------------------------------
     #compile {player_name: team_abbr} in /teams/player_to_team.json
     def get_player_to_team(self, update=False):
@@ -583,7 +635,14 @@ class ESPNNBAExtractor(BaseExtractor):
 
             #extract body data
             body_tables = self.extract_table_data(webpage, section='body')
+
             flattened_bodies = list(itertools.chain(*body_tables))
+
+            #new players, with no game log history
+            if (len(flattened_bodies) <= 5):
+                print(team_abbr, player)
+                self.logger.debug(f'No game log data for {team_abbr}, {player}, possibly due to new signing')
+                return pd.DataFrame(columns=flattened_headers)
 
             #make dataframe, clean and preprocess, and drop duplicate columns
             df = pd.DataFrame(flattened_bodies, columns=flattened_headers)
